@@ -3,13 +3,14 @@ Deploy methods for Atmosphere
 """
 import os
 import re
+import sys
 
 from django.template.loader import render_to_string
 from django.utils.text import slugify
 from django.utils.timezone import datetime
 
 
-import subspace
+from ansible.cli.playbook import PlaybookCLI
 
 from threepio import logger, deploy_logger
 
@@ -238,7 +239,14 @@ def deploy_check_volume(instance_ip, username, instance_id,
 def instance_deploy(instance_ip,
                     username,
                     instance_id,
-                    limit_playbooks=[],
+                    limit_playbooks=[
+                        '00_setup_ssh.yml',
+                        '10_setup_pkg_mgr.yml',
+                        '18_atmo_local_user_account.yml',
+                        '20_atmo_user_install.yml',
+                        '30_post_user_install.yml',
+                        '41_shell_access.yml'
+                    ],
                     **runner_opts):
     """
     Use service.ansible to deploy to an instance.
@@ -249,6 +257,7 @@ def instance_deploy(instance_ip,
     }
     playbooks_dir = settings.ANSIBLE_PLAYBOOKS_DIR
     playbooks_dir = os.path.join(playbooks_dir, 'instance_deploy')
+    username = str(username)
 
     return ansible_deployment(
         instance_ip, username, instance_id, playbooks_dir,
@@ -299,12 +308,12 @@ def user_deploy(instance_ip, username, instance_id, first_deploy=True, **runner_
         instance_ip, username, instance_id, playbooks_dir,
         extra_vars=extra_vars, raise_exception=False, **runner_opts)
     hostname = build_host_name(instance_id, instance_ip)
-    if hostname not in playbook_runner.stats.failures:
-        return playbook_runner
+    # if hostname not in playbook_runner.stats.failures:
+        # return playbook_runner
     # An error has occurred during deployment!
     # Handle specific errors from ansible based on the 'register' results.
-    playbook_results = playbook_runner.results.get(hostname)
-    _check_results_for_script_failure(playbook_results)
+    # playbook_results = playbook_runner.results.get(hostname)
+    # _check_results_for_script_failure(playbook_results)
     # If the failure was not related to users boot-scripts,
     # handle as a generic ansible failure.
     return raise_playbook_errors(playbook_runner, instance_id, instance_ip, hostname)
@@ -349,75 +358,47 @@ def user_deploy_install(instance_ip, username, instance_id, install_action, inst
         limit_playbooks, extra_vars=install_args)
 
 
-def execute_playbooks(playbook_dir, host_file, extra_vars, my_limit,
-                      logger=None, limit_playbooks=None,
-                      runner_strategy='all', **runner_opts):
+def execute_playbooks(playbook_dir, host_file, extra_vars, host,
+                      logger=None, limit_playbooks=[], **runner_opts):
     # Force requirement of a logger for 2.0 playbook runs
     if not logger:
         logger = deploy_logger
-    if runner_strategy == 'single':
-        return _one_runner_one_playbook_execution(
-            playbook_dir, host_file, extra_vars, my_limit,
-            logger=logger, limit_playbooks=limit_playbooks, **runner_opts)
-    else:
-        return _one_runner_all_playbook_execution(
-            playbook_dir, host_file, extra_vars, my_limit,
-            logger=logger, limit_playbooks=limit_playbooks, **runner_opts)
 
+    import ansible.constants
+    subspace_dir = "%s/subspace/plugins" % sys.path[-1]
+    # Set ansible configuration
+    config = {
+        "HOST_KEY_CHECKING": False,
+        "DEFAULT_LOAD_CALLBACK_PLUGINS": True,
+        "DEFAULT_CALLBACK_PLUGIN_PATH": ["%s/callback" % subspace_dir],
+        "DEFAULT_CALLBACK_WHITELIST": ["play_logger"],
+        "DEFAULT_STDOUT_CALLBACK": "play_logger",
+        "DEFAULT_LOG_PATH": "/opt/dev/atmosphere/logs/atmosphere_deploy.log",
+        "DEFAULT_STRATEGY": "subspace",
+        "DEFAULT_STRATEGY_PLUGIN_PATH": ["%s/strategy" % subspace_dir],
+        "DEFAULT_ROLES_PATH": [ settings.ANSIBLE_ROLES_PATH ],
+        "SHOW_CUSTOM_STATS": True
+    }
+    for k,v in config.iteritems():
+        setattr(ansible.constants, k, v)
 
-def _one_runner_all_playbook_execution(
-        playbook_dir, host_file, extra_vars, my_limit,
-        logger=None, limit_playbooks=None, **runner_opts):
-    from subspace.runner import Runner
-    runner = Runner.factory(
-            host_file,
-            playbook_dir,
-            extra_vars=extra_vars,
-            limit_hosts=my_limit,
-            logger=logger,
-            limit_playbooks=limit_playbooks,
-            private_key_file=settings.ATMOSPHERE_PRIVATE_KEYFILE,
-            # Use atmosphere settings
-            group_vars_map={
-                filename: os.path.join(settings.ANSIBLE_GROUP_VARS_DIR, filename)
-                for filename in os.listdir(settings.ANSIBLE_GROUP_VARS_DIR)
-            },
-            **runner_opts)
-    if runner.playbooks == []:
-        msg = "Playbook directory has no playbooks: %s" \
-            % (playbook_dir, )
-        if limit_playbooks:
-            msg = "'limit_playbooks=%s' generated zero playbooks." \
-                  " Available playbooks in directory are: %s" \
-                  % (limit_playbooks, runner._get_files(playbook_dir))
-        raise AnsibleDeployException(msg)
-    runner.run()
-    return runner
+    # Run playbooks
+    inventory_dir = "/opt/dev/atmosphere-ansible/ansible"
 
-
-def _one_runner_one_playbook_execution(
-        playbook_dir, host_file, extra_vars, my_limit,
-        logger=None, limit_playbooks=None, **runner_opts):
-    from subspace.runner import Runner
-    runners = [Runner.factory(
-            host_file,
-            os.path.join(playbook_dir, playbook_path),
-            extra_vars=extra_vars,
-            limit_hosts=my_limit,
-            logger=logger,
-            limit_playbooks=limit_playbooks,
-            # Use atmosphere settings
-            group_vars_map={
-                filename: os.path.join(settings.ANSIBLE_GROUP_VARS_DIR,
-                                       filename)
-                for filename in os.listdir(settings.ANSIBLE_GROUP_VARS_DIR)
-            },
-            private_key_file=settings.ATMOSPHERE_PRIVATE_KEYFILE,
-            **runner_opts)
-        for playbook_path in os.listdir(playbook_dir)
-        if not limit_playbooks or playbook_path in limit_playbooks]
-    [runner.run() for runner in runners]
-    return runners
+    results = []
+    for pb in limit_playbooks:
+        logger.info("Executing playbook %s/%s" % (playbook_dir, pb))
+        args = [
+            "--inventory-file=%s" % inventory_dir,
+            "--limit=%s" % hosts,
+            "--extra-vars=%s" % extra_vars,
+            "%s/%s" % (playbook_dir, pb)
+        ]
+        runner = PlaybookCLI(args)
+        runner.parse()
+        results.append(runner.run())
+        if results[-1] != 0: break
+    return results
 
 
 def check_ansible():
@@ -442,10 +423,6 @@ def configure_ansible(debug=False):
     if settings.ANSIBLE_CONFIG_FILE:
         os.environ["ANSIBLE_CONFIG"] = settings.ANSIBLE_CONFIG_FILE
         os.environ["PYTHONOPTIMIZE"] = "1" #NOTE: Required to run ansible2 + celery + prefork concurrency
-    subspace.configure({
-        "HOST_KEY_CHECKING": False,
-        "DEFAULT_ROLES_PATH": [ settings.ANSIBLE_ROLES_PATH ]
-    })
 
 
 def build_host_name(instance_id, ip):
@@ -529,45 +506,38 @@ def playbook_error_message(runner_details, error_name):
 
 
 def execution_has_unreachable(pbs, hostname):
+    """Return value 4 means unreachable in ansible-playbook"""
     if type(pbs) != list:
         pbs = [pbs]
-    return any(pb.stats.dark for pb in pbs)
+    return 4 in pbs
 
 
 def execution_has_failures(pbs, hostname):
+    """Return value 2 means failure in ansible-playbook"""
     if type(pbs) != list:
         pbs = [pbs]
-    return any(pb.stats.failures for pb in pbs)
+    return 2 in pbs
 
 
 def raise_playbook_errors(pbs, instance_id, instance_ip, hostname, allow_failures=False):
     """
+    Return value 4 means unreachable/dark
+    Return value 2 means failure
     """
     if not type(pbs) == list:
         pbs = [pbs]
     error_message = ""
     for pb in pbs:
-        if pb.stats.dark:
-            if hostname in pb.stats.dark:
-                error_message += playbook_error_message(
-                    pb.stats.dark[hostname], "Unreachable")
-            elif instance_ip in pb.stats.dark:
-                error_message += playbook_error_message(
-                    pb.stats.dark[instance_ip], "Unreachable")
-        if not allow_failures and pb.stats.failures:
-            if hostname in pb.stats.failures:
-                error_message += playbook_error_message(
-                    pb.stats.failures[hostname], "failed")
-            elif instance_ip in pb.stats.failures:
-                error_message += playbook_error_message(
-                    pb.stats.failures[instance_ip], "failed")
+        if pb == 4:
+            error_message += "Unreachable"
+        elif not allow_failures and pb == 2:
+            error_message += "Failed"
     if error_message:
-        msg = "Instance: %s IP:%s %s - %s%s" % (
+        msg = "Instance: %s IP:%s %s - %s" % (
             instance_id,
             instance_ip,
             'Hostname: ' + hostname if hostname else "",
-            error_message[:-2],
-            str(pb.stats.processed_playbooks.get(hostname,{}))
+            error_message
         )
         raise AnsibleDeployException(msg)
 
