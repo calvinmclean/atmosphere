@@ -3,7 +3,6 @@ Deploy methods for Atmosphere
 """
 import os
 import re
-import sys
 
 from django.template.loader import render_to_string
 from django.utils.text import slugify
@@ -365,17 +364,18 @@ def execute_playbooks(playbook_dir, host_file, extra_vars, host,
         logger = deploy_logger
 
     import ansible.constants
-    subspace_dir = "%s/subspace/plugins" % sys.path[-1]
+    inventory_dir = "%s/ansible" % settings.ANSIBLE_ROOT
+    plugin_dir = "%s/plugins" % inventory_dir
     # Set ansible configuration
     config = {
         "HOST_KEY_CHECKING": False,
         "DEFAULT_LOAD_CALLBACK_PLUGINS": True,
-        "DEFAULT_CALLBACK_PLUGIN_PATH": ["%s/callback" % subspace_dir],
+        "DEFAULT_CALLBACK_PLUGIN_PATH": ["%s/callback" % plugin_dir],
         "DEFAULT_CALLBACK_WHITELIST": ["play_logger"],
         "DEFAULT_STDOUT_CALLBACK": "play_logger",
-        "DEFAULT_LOG_PATH": "/opt/dev/atmosphere/logs/atmosphere_deploy.log",
+        "DEFAULT_LOG_PATH": str(settings.DEPLOY_LOG_FILENAME),
         "DEFAULT_STRATEGY": "subspace",
-        "DEFAULT_STRATEGY_PLUGIN_PATH": ["%s/strategy" % subspace_dir],
+        "DEFAULT_STRATEGY_PLUGIN_PATH": ["%s/strategy" % plugin_dir],
         "DEFAULT_ROLES_PATH": [ settings.ANSIBLE_ROLES_PATH ],
         "SHOW_CUSTOM_STATS": True
     }
@@ -383,8 +383,6 @@ def execute_playbooks(playbook_dir, host_file, extra_vars, host,
         setattr(ansible.constants, k, v)
 
     # Run playbooks
-    inventory_dir = "/opt/dev/atmosphere-ansible/ansible"
-
     results = []
     for pb in limit_playbooks:
         logger.info("Executing playbook %s/%s" % (playbook_dir, pb))
