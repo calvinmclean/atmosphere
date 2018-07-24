@@ -21,6 +21,7 @@ class PredeclareRouter(object):
             for queue in queues.itervalues():
                 queue(channel).declare()
 DEPLOY_TASKS = [
+    "_deploy_user_customizations",
     "_deploy_instance",
     "_deploy_instance_for_user",
     "check_web_desktop_task",

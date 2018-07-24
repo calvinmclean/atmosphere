@@ -31,7 +31,7 @@ from core.models.identity import Identity
 from core.models.profile import UserProfile
 
 from service.deploy import (
-    instance_deploy, user_deploy,
+    instance_deploy, user_deploy, install_user_customizations,
     build_host_name,
     ready_to_deploy as ansible_ready_to_deploy,
     run_utility_playbooks, execution_has_failures, execution_has_unreachable
@@ -372,6 +372,7 @@ def user_deploy_failed(
         instance_id,
         user,
         message=None,
+        send_email=True,
         **celery_task_args):
     try:
         celery_logger.debug("user_deploy_failed task started at %s." % datetime.now())
@@ -380,7 +381,8 @@ def user_deploy_failed(
         err_str = "Error Traceback:%s" % (traceback,)
         celery_logger.error(err_str)
         # Send deploy email
-        _send_instance_email_with_failure(driverCls, provider, identity, instance_id, user.username, err_str)
+        if send_email:
+            _send_instance_email_with_failure(driverCls, provider, identity, instance_id, user.username, err_str)
         # Update metadata on the instance -- use the last 255 chars of traceback (Metadata limited)
         limited_trace = str(traceback)[-255:]
         metadata = {
@@ -964,6 +966,46 @@ def _deploy_instance(driverCls, provider, identity, instance_id,
         _deploy_instance.retry(exc=exc)
 
 
+@task(name="_deploy_user_customizations",
+      default_retry_delay=124,
+      soft_time_limit=32 * 60,  # 32 minute hard-set time limit.
+      max_retries=3
+      )
+def _deploy_user_customizations(driverCls, provider, identity, instance_id, selected_options,
+                    username=None, password=None, token=None, redeploy=False, **celery_task_args):
+    try:
+        celery_logger.debug("_deploy_user_customizations task started at %s." % datetime.now())
+        # Check if instance still exists
+        driver = get_driver(driverCls, provider, identity)
+        instance = driver.get_instance(instance_id)
+        if not instance:
+            celery_logger.debug("Instance has been teminated: %s." % instance_id)
+            return
+        if not instance.ip:
+            celery_logger.debug("Instance IP address missing from : %s." % instance_id)
+            raise Exception("Instance IP Missing? %s" % instance_id)
+        # NOTE: This is required to use ssh to connect.
+        # TODO: Is this still necessary? What about times when we want to use
+        # the adminPass? --Steve
+        celery_logger.info(instance.extra)
+        instance._node.extra['password'] = None
+
+    except (BaseException, Exception) as exc:
+        celery_logger.exception(exc)
+        _deploy_user_customizations.retry(exc=exc)
+    try:
+        username = identity.user.username
+        install_user_customizations(instance.ip, username, instance_id, selected_options)
+        _update_status_log(instance, "Ansible Finished for %s." % instance.ip)
+        celery_logger.debug("_deploy_user_customizations task finished at %s." % datetime.now())
+    except AnsibleDeployException as exc:
+        celery_logger.exception(exc)
+        _deploy_user_customizations.retry(exc=exc)
+    except (BaseException, Exception) as exc:
+        celery_logger.exception(exc)
+        _deploy_user_customizations.retry(exc=exc)
+
+
 @task(name="check_web_desktop_task", max_retries=4, default_retry_delay=15)
 def check_web_desktop_task(driverCls, provider, identity,
                        instance_alias, *args, **kwargs):
@@ -1346,6 +1388,50 @@ def update_links(instances):
             continue
     celery_logger.debug("Instances updated: %d" % len(updated))
     return updated
+
+
+def deploy_user_customizations(
+        driverCls, provider, identity, instance, core_identity, selected_options,
+        username=None, password=None, redeploy=False, deploy=True):
+    """
+    Use Case: Instance has (or will be at start of this chain) an IP && is active.
+    Goal: if 'Deploy' - Update metadata to inform you will be deploying
+          else        - Remove metadata and end.
+    """
+    start_chain = None
+    # Guarantee 'networking' passes deploy_ready_test first!
+    deploy_ready_task = deploy_ready_test.si(
+        driverCls, provider, identity, instance.id, str(core_identity.uuid))
+    # ALWAYS start by testing that deployment is possible. then deploy.
+    start_chain = deploy_ready_task
+
+    # Start building a deploy chain
+    deploy_meta_task = update_metadata.si(
+        driverCls, provider, identity, instance.id,
+        {
+            'tmp_status': 'deploying_user_customizations',
+            'fault_message': "",
+            'fault_trace': ""
+        })
+
+    install_options_task = _deploy_user_customizations.si(
+          driverCls, provider, identity, instance.id, selected_options,
+          username, None, redeploy)
+    remove_status_chain = get_remove_status_chain(driverCls, provider, identity, instance)
+    deploy_failed_task = user_deploy_failed.s(driverCls, provider, identity, instance.id, core_identity.created_by, send_email=False)
+    remove_status_on_failure_task = get_remove_status_chain(driverCls, provider, identity, instance)
+
+    # (SUCCESS_)LINKS and ERROR_LINKS
+    install_options_task.link_error(deploy_failed_task)
+    deploy_ready_task.link(deploy_meta_task)
+    deploy_ready_task.link_error(deploy_failed_task)
+    deploy_meta_task.link(install_options_task)
+    install_options_task.link(remove_status_chain)
+    deploy_failed_task.link(remove_status_on_failure_task)
+    # Final task at this point should be 'remove_status_chain'
+
+    celery_logger.info("Deploy Chain : %s" % print_chain(start_chain, idx=0))
+    return start_chain
 
 
 def _update_floating_ip_to_active_fixed_ip(driver, instance, core_identity_uuid):

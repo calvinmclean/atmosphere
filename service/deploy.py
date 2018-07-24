@@ -272,25 +272,30 @@ def run_utility_playbooks(instance_ip, username, instance_id,
         raise_exception=raise_exception)
 
 
-def select_install_playbooks(install_action):
+def select_install_playbooks(selected_options):
     """
     This function would take an install_action, say:
     `apache` or `nginx` or `R` or `Docker`
     and return as a result, the list of playbooks required to make it happen.
     """
-    raise Exception("Unknown installation action:%s" % install_action)
+    return map(lambda item: item['name'], selected_options)
 
 
-def user_deploy_install(instance_ip, username, instance_id, install_action, install_args):
+def install_user_customizations(instance_ip, username, instance_id, selected_options):
     """
     Placeholder function to show how a user-initialized install from Troposphere might be handled on the backend.
     """
     playbooks_dir = settings.ANSIBLE_PLAYBOOKS_DIR
     playbooks_dir = os.path.join(playbooks_dir, 'user_customizations')
-    limit_playbooks = select_install_playbooks(install_action)
-    return ansible_deployment(
-        instance_ip, username, instance_id, playbooks_dir,
-        limit_playbooks, extra_vars=install_args)
+    limit_playbooks = select_install_playbooks(selected_options)
+    results = [];
+    for pb in limit_playbooks:
+        extra_vars = [i for i in selected_options if i['name'] == pb][0]['args']
+        results.append(ansible_deployment(
+            instance_ip, username, instance_id, playbooks_dir,
+            limit_playbooks=["{}.yml".format(pb)],
+            extra_vars=extra_vars)[0])
+    return results
 
 
 def execute_playbooks(playbook_dir, host_file, extra_vars, host,

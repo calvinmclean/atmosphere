@@ -421,6 +421,57 @@ def redeploy_instance(
     return
 
 
+def install_user_customizations(
+        esh_driver,
+        esh_instance,
+        core_identity,
+        selected_options,
+        user=None,
+        status_update=True):
+    from service.tasks.driver import deploy_user_customizations
+
+    status = esh_instance.extra['status']
+
+    # Future-TODO:
+    # if user:
+    #     ensure user has the ability to act on this instance.
+    if status not in ['active', 'redeploying', 'reboot', 'hard_reboot']:
+        raise Exception("Cannot install extra options on an instance in a non-active state. (Current state: %s)" % status)
+
+    # Force a specific history update
+    if status_update:
+        esh_instance.extra['task'] = None
+        esh_instance.extra['metadata']['tmp_status'] = "deploying_user_customizations"
+        # Convert & Update status to installing
+        convert_esh_instance(esh_driver,
+                             esh_instance,
+                             str(core_identity.provider.uuid),
+                             str(core_identity.uuid),
+                             core_identity.created_by)
+
+    if type(esh_driver) == AtmosphereMockDriver:
+        return
+    # HACK: Forces a metadata update to avoid "Instance activity workflow" errors in the GUI
+    # by setting 'tmp_status' to 'initializing' users will not be stuck in a "final state"
+    # if API polling starts _prior_ to instance action being successful.
+    # When 'Instance activity workflow' has been addressed, remove these lines.
+    metadata = {'tmp_status': 'deploying_user_customizations'}
+    _update_instance_metadata(
+        esh_driver,
+        esh_instance,
+        metadata
+    )
+    esh_instance = esh_driver.get_instance(esh_instance.id)
+    # END-HACK
+
+    # Do the install
+    deploy_chain = deploy_user_customizations(
+        esh_driver.__class__, esh_driver.provider, esh_driver.identity, esh_instance,
+        core_identity, selected_options, username=core_identity.created_by.username)
+    deploy_chain.apply_async()
+    return
+
+
 def restore_ip_chain(esh_driver, esh_instance, deploy=True,
                      core_identity_uuid=None):
     """
@@ -2062,6 +2113,9 @@ def run_instance_action(user, identity, instance_id, action_type, action_params)
         machine_alias = action_params.get('machine_alias', '')
         machine = esh_driver.get_machine(machine_alias)
         result_obj = esh_driver.rebuild_instance(esh_instance, machine)
+    elif 'userCustomizations' == action_type:
+        selected_options = action_params.get('selectedOptions')
+        result_obj = install_user_customizations(esh_driver, esh_instance, identity, selected_options, user=user)
     else:
         raise ActionNotAllowed(
             'Unable to to perform action %s.' % (action_type))

@@ -113,6 +113,7 @@ class InstanceAction(models.Model):
                 all_actions.append('Shelve')
                 all_actions.append('Suspend')
                 all_actions.append('Stop')
+                all_actions.append('UserCustomizations')
                 all_actions.append('Terminate')
                 all_actions.append('Imaging')
         elif last_status == 'deploy_error':
