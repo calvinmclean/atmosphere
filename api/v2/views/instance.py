@@ -304,6 +304,7 @@ class InstanceViewSet(MultipleFieldLookup, AuthModelViewSet):
         size_alias = data.get('size_alias')
         allocation_source_id = data.get('allocation_source_id')
         boot_scripts = data.pop("scripts", [])
+        user_customizations = data.pop("user_customizations", [])
         deploy = data.get('deploy', True)
         project_uuid = data.get('project')
         extra = data.get('extra', {})
@@ -327,6 +328,7 @@ class InstanceViewSet(MultipleFieldLookup, AuthModelViewSet):
             instance.save()
             if boot_scripts:
                 _save_scripts_to_instance(instance, boot_scripts)
+            logger.info("USER_CUSTOMIZATIONS {}".format(user_customizations))
             instance.change_allocation_source(allocation_source)
             return Response(
                 serialized_instance.data, status=status.HTTP_201_CREATED)
@@ -355,4 +357,3 @@ class InstanceViewSet(MultipleFieldLookup, AuthModelViewSet):
                              "Returning 409-CONFLICT")
             return failure_response(status.HTTP_409_CONFLICT,
                                     str(exc.message))
-
