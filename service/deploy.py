@@ -278,7 +278,7 @@ def select_install_playbooks(selected_options):
     `apache` or `nginx` or `R` or `Docker`
     and return as a result, the list of playbooks required to make it happen.
     """
-    return map(lambda item: item['name'], selected_options)
+    return map(lambda item: "{}.yml".format(item), selected_options)
 
 
 def install_user_customizations(instance_ip, username, instance_id, selected_options):
@@ -288,14 +288,9 @@ def install_user_customizations(instance_ip, username, instance_id, selected_opt
     playbooks_dir = settings.ANSIBLE_PLAYBOOKS_DIR
     playbooks_dir = os.path.join(playbooks_dir, 'user_customizations')
     limit_playbooks = select_install_playbooks(selected_options)
-    results = [];
-    for pb in limit_playbooks:
-        extra_vars = [i for i in selected_options if i['name'] == pb][0]['args']
-        results.append(ansible_deployment(
-            instance_ip, username, instance_id, playbooks_dir,
-            limit_playbooks=["{}.yml".format(pb)],
-            extra_vars=extra_vars)[0])
-    return results
+    return ansible_deployment(
+        instance_ip, username, instance_id, playbooks_dir,
+        limit_playbooks=limit_playbooks)
 
 
 def execute_playbooks(playbook_dir, host_file, extra_vars, host,
