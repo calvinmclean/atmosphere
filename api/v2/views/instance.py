@@ -328,7 +328,9 @@ class InstanceViewSet(MultipleFieldLookup, AuthModelViewSet):
             instance.save()
             if boot_scripts:
                 _save_scripts_to_instance(instance, boot_scripts)
-            logger.info("USER_CUSTOMIZATIONS {}".format(user_customizations))
+            if user_customizations:
+                instance.user_customizations = user_customizations
+                instance.save()
             instance.change_allocation_source(allocation_source)
             return Response(
                 serialized_instance.data, status=status.HTTP_201_CREATED)

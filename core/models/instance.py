@@ -12,6 +12,8 @@ from django.db.models import (
 )
 from django.utils import timezone
 
+from django.contrib.postgres.fields import ArrayField
+
 import pytz
 
 from rtwo.models.machine import MockMachine
@@ -66,6 +68,7 @@ class Instance(models.Model):
     # FIXME  Problems when setting a default, missing auto_now_add
     start_date = models.DateTimeField()
     end_date = models.DateTimeField(null=True, blank=True)
+    user_customizations = ArrayField(models.TextField(), default=list)
 
     # Model Managers
     objects = models.Manager()  # The default manager.

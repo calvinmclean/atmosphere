@@ -38,7 +38,7 @@ from core.models import AtmosphereUser, InstanceAllocationSourceSnapshot
 from core.models.ssh_key import get_user_ssh_keys
 from core.models.application import Application
 from core.models.identity import Identity as CoreIdentity
-from core.models.instance import convert_esh_instance, find_instance
+from core.models.instance import convert_esh_instance, find_instance, Instance
 from core.models.instance_action import InstanceAction
 from core.models.size import convert_esh_size
 from core.models.machine import ProviderMachine
@@ -2115,6 +2115,9 @@ def run_instance_action(user, identity, instance_id, action_type, action_params)
         result_obj = esh_driver.rebuild_instance(esh_instance, machine)
     elif 'userCustomizations' == action_type:
         selected_options = action_params.get('selectedOptions')
+        instance = Instance.objects.get(provider_alias=esh_instance.id)
+        instance.user_customizations.extend(selected_options)
+        instance.save()
         result_obj = install_user_customizations(esh_driver, esh_instance, identity, selected_options, user=user)
     else:
         raise ActionNotAllowed(

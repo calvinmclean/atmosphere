@@ -47,6 +47,7 @@ class InstanceSerializer(serializers.HyperlinkedModelSerializer):
         lookup_field='uuid',
         uuid_field='provider_alias'
     )
+    user_customizations = serializers.ListField(child=serializers.CharField())
 
     def get_allocation_source(self, instance):
         snapshot = InstanceAllocationSourceSnapshot.objects.filter(
@@ -112,6 +113,7 @@ class InstanceSerializer(serializers.HyperlinkedModelSerializer):
             'version',  # NOTE:Should replace image?
             'usage',
             'scripts',
+            'user_customizations',
             'project',
             'start_date',
             'end_date',

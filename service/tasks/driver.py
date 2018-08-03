@@ -704,6 +704,10 @@ def get_chain_from_active_with_ip(
     deploy_user_task = _deploy_instance_for_user.si(
         driverCls, provider, identity, instance.id,
         username, redeploy)
+    deploy_user_customizations_task = _deploy_user_customizations.si(
+        driverCls, provider, identity, instance.id,
+        Instance.objects.get(provider_alias=instance.id).user_customizations,
+        username, None, redeploy)
     check_vnc_task = check_process_task.si(
         driverCls, provider, identity, instance.id)
     check_web_desktop = check_web_desktop_task.si(
@@ -728,6 +732,7 @@ def get_chain_from_active_with_ip(
     deploy_task.link_error(
         deploy_failed.s(driverCls, provider, identity, instance.id))
     deploy_user_task.link_error(user_deploy_failed_task)
+    deploy_user_customizations_task.link_error(user_deploy_failed_task)
     # Note created new 'copy' of remove_status to avoid potential for email*2
     user_deploy_failed_task.link(remove_status_on_failure_task)
 
@@ -743,7 +748,8 @@ def get_chain_from_active_with_ip(
     check_vnc_task.link(deploy_user_task)  # this line and below, user can create a failure.
     # ready -> metadata -> deployment..
 
-    deploy_user_task.link(remove_status_chain)
+    deploy_user_task.link(deploy_user_customizations_task)
+    deploy_user_customizations_task.link(remove_status_chain)
     # Final task at this point should be 'remove_status_chain'
 
     # Only send emails when 'redeploy=False'

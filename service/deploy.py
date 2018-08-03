@@ -288,9 +288,11 @@ def install_user_customizations(instance_ip, username, instance_id, selected_opt
     playbooks_dir = settings.ANSIBLE_PLAYBOOKS_DIR
     playbooks_dir = os.path.join(playbooks_dir, 'user_customizations')
     limit_playbooks = select_install_playbooks(selected_options)
-    return ansible_deployment(
-        instance_ip, username, instance_id, playbooks_dir,
-        limit_playbooks=limit_playbooks)
+    if limit_playbooks:
+        return ansible_deployment(
+            instance_ip, username, instance_id, playbooks_dir,
+            limit_playbooks=limit_playbooks)
+    return []
 
 
 def execute_playbooks(playbook_dir, host_file, extra_vars, host,
