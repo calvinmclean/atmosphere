@@ -69,6 +69,12 @@ def admin_address(test_user=None):
     return (settings.ADMINS[0][0], settings.ADMINS[0][1])
 
 
+def all_admin_address_strs():
+    """Return a list of all admin email addresses from django's settings
+    """
+    return [email_address_str(admin_name, admin_email) for admin_name, admin_email in settings.ADMINS]
+
+
 def atmo_daemon_address():
     """ Return the daemon email address.
     """
@@ -239,11 +245,10 @@ def email_to_admin(
             user_email = "%s@%s" % (username, settings.DEFAULT_EMAIL_DOMAIN)
     elif not username:  # user_email provided
         username = 'Unknown'
-    if request_tracker or not cc_user:
-        # Send w/o the CC
-        cc = []
-    else:
-        cc = [email_address_str(username, user_email)]
+    # Always CC all admins, conditionally CC user
+    cc = all_admin_address_strs()
+    if not request_tracker or cc_user:
+        cc += [email_address_str(username, user_email)]
     celery_task = send_email.si(subject, body,
                from_email=email_address_str(username, user_email),
                to=[email_address_str(sendto, sendto_email)],
@@ -258,14 +263,13 @@ def email_from_admin(username, subject, message, html=False):
         Atmosphere admin email from admins to a user.
         Returns True on success and False on failure.
     """
-    from_name, from_email = admin_address()
     user_email = lookupEmail(username)
     if not user_email:
         user_email = "%s@%s" % (username, settings.DEFAULT_EMAIL_DOMAIN)
     celery_task = send_email.si(subject, message,
-               from_email=email_address_str(from_name, from_email),
+               from_email=email_address_str(*admin_address()),
                to=[email_address_str(username, user_email)],
-               cc=[email_address_str(from_name, from_email)],
+               cc=all_admin_address_strs(),
                html=html)
     celery_task.delay() # Task executes here
     return True
@@ -286,13 +290,13 @@ def send_approved_resource_email(user, request, reason):
         "request": request,
         "reason": reason
     }
-    from_name, from_email = admin_address()
     user_email = lookupEmail(user.username)
     recipients = [email_address_str(user.username, user_email)]
-    sender = email_address_str(from_name, from_email)
+    sender = email_address_str(*admin_address())
+    cc = all_admin_address_strs()
 
     return send_email_template(subject, template, recipients, sender,
-                               context=context, cc=[sender], html=False)
+                               context=context, cc=cc, html=False)
 
 
 def send_denied_resource_email(user, request, reason):
@@ -310,13 +314,13 @@ def send_denied_resource_email(user, request, reason):
         "request": request,
         "reason": reason
     }
-    from_name, from_email = admin_address()
     user_email = lookupEmail(user.username)
     recipients = [email_address_str(user.username, user_email)]
-    sender = email_address_str(from_name, from_email)
+    sender = email_address_str(*admin_address())
+    cc = all_admin_address_strs()
 
     return send_email_template(subject, template, recipients, sender,
-                               context=context, cc=[sender], html=False)
+                               context=context, cc=cc, html=False)
 
 
 def send_instance_email(username, instance_id, instance_name,
