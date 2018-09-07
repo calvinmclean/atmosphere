@@ -77,7 +77,7 @@ class MachineRequest(BaseRequest):
 
     new_machine_provider = models.ForeignKey(Provider)
     new_machine_owner = models.ForeignKey(User, related_name="new_image_owner")
-    
+
     # Date time stamps
     #start_date = models.DateTimeField(default=timezone.now)
     #end_date = models.DateTimeField(null=True, blank=True)
@@ -125,47 +125,12 @@ class MachineRequest(BaseRequest):
     def clean_old_status(self):
         return self._recover_from_error()[1]
 
-
-    def clean(self):
-        """
-        Clean up machine requests before saving initial objects to allow
-        users the chance to correct their mistakes.
-        """
-        # 'Created application' specific logic that should fail:
-        if self.new_version_forked:
-            pass
-        # 'Updated Version' specific logic that should fail:
-        else:
-            if self.new_application_name:
-                raise ValidationError(
-                    "Application name cannot be set unless a new application "
-                    "is being created. Remove the Application name to update "
-                    "-OR- fork the existing application")
-
-        # General Validation && AutoCompletion
-        if self.access_list:
-            self.new_version_membership = _match_membership_to_access(
-                self.access_list,
-                self.new_version_membership)
-
-        # Automatically set 'end date' when completed
-        #TODO: verify this should be 'old_status' or change it to a StatusType
-        if self.old_status == 'completed' and not self.end_date:
-            self.end_date = timezone.now()
-
     def new_version_threshold(self):
         return {'memory': self.new_version_memory_min,
                 'cpu': self.new_version_cpu_min}
 
     def get_request_status(self):
         return self.status.name
-
-    def get_app(self):
-        if self.new_machine:
-            return self.new_machine.application
-        # Return the parent application if the new machine has not been
-        # created.
-        return self.parent_machine.application
 
     def get_version(self):
         if self.new_machine:
@@ -218,45 +183,6 @@ class MachineRequest(BaseRequest):
              self.start_date.strftime('%m%d%Y_%H%M%S'))
         return meta_name
 
-    def fix_metadata(self, im):
-        if not self.new_machine:
-            raise Exception(
-                "New machine missing from machine request. Cannot Fix.")
-        (orig_managerCls, orig_creds,
-         dest_managerCls, dest_creds) = self.prepare_manager()
-        im = dest_managerCls(**dest_creds)
-        old_mach_id = self.instance.source.identifier
-        new_mach_id = self.new_machine.identifier
-        old_mach = im.get_image(old_mach_id)
-        if not old_mach:
-            raise Exception("Could not find old machine.. Cannot Fix.")
-        new_mach = im.get_image(new_mach_id)
-        if not old_mach:
-            raise Exception("Could not find new machine.. Cannot Fix.")
-        properties = new_mach.properties
-        previous_kernel = old_mach.properties.get('kernel_id')
-        previous_ramdisk = old_mach.properties.get('ramdisk_id')
-        if not previous_kernel or previous_ramdisk:
-            raise Exception(
-                "Kernel/Ramdisk information MISSING "
-                "from previous machine. "
-                "Fix NOT required")
-        properties.update(
-            {'kernel_id': previous_kernel, 'ramdisk_id': previous_ramdisk})
-        im.update_image(new_mach, properties=properties)
-
-    def old_provider(self):
-        return self.instance.source.provider
-
-    def new_machine_id(self):
-        if self.new_machine:
-            return self.new_machine.identifier
-        else:
-            return None
-
-    def instance_alias(self):
-        return self.instance.provider_alias
-
     def is_public(self):
         return "public" in self.new_application_visibility.lower()
 
@@ -277,11 +203,6 @@ class MachineRequest(BaseRequest):
     def get_exclude_files(self):
         exclude = re.split(", | |\n", self.exclude_files)
         return exclude
-
-    def old_admin_identity(self):
-        old_provider = self.parent_machine.provider
-        old_admin = old_provider.get_admin_identity()
-        return old_admin
 
     def new_admin_identity(self):
         new_provider = self.new_machine_provider
@@ -317,11 +238,6 @@ class MachineRequest(BaseRequest):
             new_creds['domain_name'] = 'default'
 
         return (old_creds, new_creds)
-
-    def on_update_status(self, latest_update):
-        self.old_status = "(imaging) %s" % latest_update
-        logger.info("Status update: %s" % self.old_status)
-        self.save()
 
     def prepare_manager(self):
         """
@@ -494,67 +410,3 @@ class MachineRequest(BaseRequest):
     class Meta:
         db_table = "machine_request"
         app_label = "core"
-
-
-def _match_membership_to_access(access_list, membership):
-    """
-    INPUT: user1,user2, user3 + user4,user5
-    OUTPUT: <User: 1>, ..., <User: 5>
-    """
-    # Circ.Dep. DO NOT MOVE UP!! -- Future Solve:Move into Group?
-    from core.models.group import Group
-    if not access_list:
-        return membership.all()
-    # If using access list, parse the list
-    # into queries and evaluate the filter ONCE.
-    names_wanted = access_list.split(',')
-    query_list = map(lambda name: Q(name__iexact=name), names_wanted)
-    query_list = reduce(lambda qry1, qry2: qry1 | qry2, query_list)
-    members = Group.objects.filter(query_list)
-    return members | membership.all()
-
-
-def _create_new_application(machine_request, new_image_id, tags=[]):
-    new_provider = machine_request.new_machine_provider
-    user = machine_request.new_machine_owner
-    owner_ident = Identity.objects.get(created_by=user, provider=new_provider)
-    # This is a brand new app and a brand new providermachine
-    new_app = create_application(
-        new_provider.id,
-        new_image_id,
-        machine_request.new_application_name,
-        owner_ident,
-        # new_app.Private = False when machine_request.is_public = True
-        not machine_request.is_public(),
-        machine_request.new_machine_version,
-        machine_request.new_machine_description,
-        tags)
-    return new_app
-
-
-def _update_parent_application(machine_request, new_image_id, tags=[]):
-    parent_app = machine_request.instance.source.providermachine.application
-    return _update_application(parent_app, machine_request, tags=tags)
-
-
-def _update_application(application, machine_request, tags=[]):
-    if application.name is not machine_request.new_application_name:
-        application.name = machine_request.new_application_name
-    if machine_request.new_machine_description:
-        application.description = machine_request.new_machine_description
-    application.private = not machine_request.is_public()
-    application.tags = tags
-    application.save()
-    return application
-
-
-def _update_existing_machine(machine_request, application, provider_machine):
-    new_provider = machine_request.new_machine_provider
-    user = machine_request.new_machine_owner
-    owner_ident = Identity.objects.get(created_by=user, provider=new_provider)
-
-    provider_machine.application = application
-    provider_machine.version = machine_request.new_machine_version
-    provider_machine.created_by = user
-    provider_machine.created_by_identity = owner_ident
-    provider_machine.save()
