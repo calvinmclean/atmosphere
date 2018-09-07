@@ -6,25 +6,21 @@ import re
 import os
 
 from django.db import models
-from django.db.models import Q, Model
-from django.core.exceptions import ValidationError
-from django.utils import timezone
+from django.db.models import Model
 from core.models.user import AtmosphereUser as User
 
-from core.models.application import create_application, ApplicationThreshold
+from core.models.application import ApplicationThreshold
 from core.models.license import License
 from core.models.boot_script import BootScript
 from core.models.machine import ProviderMachine
 from core.models.node import NodeController
 from core.models.provider import Provider
-from core.models.identity import Identity
 from core.models.application_version import ApplicationVersion
 
 from atmosphere.settings import secrets
 from threepio import logger
 from core.models.abstract import BaseRequest
 from core.exceptions import RequestLimitExceeded
-from functools import reduce
 
 UNRESOLVED_STATES = ["pending", "processing", "validated", "failed"]
 
