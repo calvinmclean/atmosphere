@@ -4,7 +4,7 @@ name: default
 
 steps:
   - name: atmosphere
-    image: ubuntu:14.04
+    image: postgres:9.6
     commands:
       - export DJANGO_SETTINGS_MODULE=atmosphere.settings
       - apt-get update && apt-get install -y python-pip postgresql
