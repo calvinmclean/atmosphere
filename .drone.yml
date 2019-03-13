@@ -8,6 +8,7 @@ steps:
     commands:
       - export DJANGO_SETTINGS_MODULE=atmosphere.settings
       - apt-get update && apt-get install -y python-pip postgresql
+      - service postgresql start
       - pip install -U pip==9.0.3 setuptools
       - pip install pip-tools==1.11.0
       - psql -c "CREATE USER atmosphere_db_user WITH PASSWORD 'atmosphere_db_pass' CREATEDB;" -U postgres
