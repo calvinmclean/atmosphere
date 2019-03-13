@@ -4,16 +4,14 @@ name: default
 
 steps:
   - name: atmosphere
-    image: postgres:9.6
+    image: ubuntu:14.04
     commands:
       - export DJANGO_SETTINGS_MODULE=atmosphere.settings
       - apt-get update && apt-get install -y python-pip
       - pip install -U pip==9.0.3 setuptools
       - pip install pip-tools==1.11.0
-      - pg_createcluster --start 9.6 atmo
-      - service postgresql start
-      - psql -c "CREATE USER atmosphere_db_user WITH PASSWORD 'atmosphere_db_pass' CREATEDB;" -U postgres
-      - psql -c "CREATE DATABASE atmosphere_db WITH OWNER atmosphere_db_user;" -U postgres
+      - psql -c "CREATE USER atmosphere_db_user WITH PASSWORD 'atmosphere_db_pass' CREATEDB;" -U postgres -h postgres
+      - psql -c "CREATE DATABASE atmosphere_db WITH OWNER atmosphere_db_user;" -U postgres -h postgres
       - pip-sync requirements.txt
       - cp ./variables.ini.dist ./variables.ini
       - ./configure
@@ -29,3 +27,10 @@ steps:
       - coverage run --append manage.py behave --keepdb --tags ~@skip-if-${DISTRIBUTION} --settings=atmosphere.settings --format rerun --outfile rerun_failing.features
       - if [ -f "rerun_failing.features" ]; then python manage.py behave --logging-level DEBUG --capture-stderr --capture --verbosity 3 --keepdb @rerun_failing.features; fi
       - python manage.py makemigrations --dry-run --check
+
+services:
+  - name: postgres
+    image: postgres:9.6
+    environment:
+      POSTGRES_USER: atmosphere_db_user
+      POSTGRES_PASSWORD: atmosphere_db_pass
