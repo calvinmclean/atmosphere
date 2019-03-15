@@ -27,6 +27,7 @@ steps:
       - if [ -f "rerun_failing.features" ]; then python manage.py behave --logging-level DEBUG --capture-stderr --capture --verbosity 3 --keepdb @rerun_failing.features; fi
       - python manage.py makemigrations --dry-run --check
     settings:
+      repo: calvinmclean/atmosphere
       username:
         from_secret: docker_username
       password:
