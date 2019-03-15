@@ -4,7 +4,7 @@ name: default
 
 steps:
   - name: cyverse
-    image: ubuntu:14.04
+    image: calvinmclean/atmosphere
     commands:
       - export DJANGO_SETTINGS_MODULE=atmosphere.settings
       - apt-get update && apt-get install --no-install-recommends -y  apt-transport-https build-essential git g++ libffi-dev libldap2-dev libpq-dev libsasl2-dev libssl-dev libxml2-dev libxslt1-dev make openssl python python-dev python-m2crypto python-pip python-psycopg2 python-setuptools python-tk redis-server ssh sudo swig ufw uwsgi uwsgi-plugin-python zlib1g-dev
@@ -27,29 +27,29 @@ steps:
       - if [ -f "rerun_failing.features" ]; then python manage.py behave --logging-level DEBUG --capture-stderr --capture --verbosity 3 --keepdb @rerun_failing.features; fi
       - python manage.py makemigrations --dry-run --check
 
-  - name: jetstream
-    image: ubuntu:14.04
-    commands:
-      - export DJANGO_SETTINGS_MODULE=atmosphere.settings
-      - apt-get update && apt-get install --no-install-recommends -y  apt-transport-https build-essential git g++ libffi-dev libldap2-dev libpq-dev libsasl2-dev libssl-dev libxml2-dev libxslt1-dev make openssl python python-dev python-m2crypto python-pip python-psycopg2 python-setuptools python-tk redis-server ssh sudo swig ufw uwsgi uwsgi-plugin-python zlib1g-dev
-      - service redis-server start
-      - pip install -U pip==9.0.3 setuptools
-      - pip install pip-tools==1.11.0
-      - pip-sync requirements.txt
-      - cp ./variables.ini.dist ./variables.ini
-      - ./configure
-      - python manage.py check
-      - python manage.py makemigrations --dry-run --check
-      - patch variables.ini variables_for_testing_jetstream.ini.patch
-      - ./configure
-      - pip-sync dev_requirements.txt
-      - ./travis/check_for_dead_code_with_vulture.sh
-      - yapf --diff -p -- $(git ls-files | grep '\.py$')
-      - prospector --profile prospector_profile.yaml --messages-only -- $(git ls-files | grep '\.py$')
-      - coverage run manage.py test --keepdb --noinput --settings=atmosphere.settings
-      - coverage run --append manage.py behave --keepdb --tags ~@skip-if-jetstream --settings=atmosphere.settings --format rerun --outfile rerun_failing.features
-      - if [ -f "rerun_failing.features" ]; then python manage.py behave --logging-level DEBUG --capture-stderr --capture --verbosity 3 --keepdb @rerun_failing.features; fi
-      - python manage.py makemigrations --dry-run --check
+  # - name: jetstream
+  #   image: ubuntu:14.04
+  #   commands:
+  #     - export DJANGO_SETTINGS_MODULE=atmosphere.settings
+  #     - apt-get update && apt-get install --no-install-recommends -y  apt-transport-https build-essential git g++ libffi-dev libldap2-dev libpq-dev libsasl2-dev libssl-dev libxml2-dev libxslt1-dev make openssl python python-dev python-m2crypto python-pip python-psycopg2 python-setuptools python-tk redis-server ssh sudo swig ufw uwsgi uwsgi-plugin-python zlib1g-dev
+  #     - service redis-server start
+  #     - pip install -U pip==9.0.3 setuptools
+  #     - pip install pip-tools==1.11.0
+  #     - pip-sync requirements.txt
+  #     - cp ./variables.ini.dist ./variables.ini
+  #     - ./configure
+  #     - python manage.py check
+  #     - python manage.py makemigrations --dry-run --check
+  #     - patch variables.ini variables_for_testing_jetstream.ini.patch
+  #     - ./configure
+  #     - pip-sync dev_requirements.txt
+  #     - ./travis/check_for_dead_code_with_vulture.sh
+  #     - yapf --diff -p -- $(git ls-files | grep '\.py$')
+  #     - prospector --profile prospector_profile.yaml --messages-only -- $(git ls-files | grep '\.py$')
+  #     - coverage run manage.py test --keepdb --noinput --settings=atmosphere.settings
+  #     - coverage run --append manage.py behave --keepdb --tags ~@skip-if-jetstream --settings=atmosphere.settings --format rerun --outfile rerun_failing.features
+  #     - if [ -f "rerun_failing.features" ]; then python manage.py behave --logging-level DEBUG --capture-stderr --capture --verbosity 3 --keepdb @rerun_failing.features; fi
+  #     - python manage.py makemigrations --dry-run --check
 
 services:
   - name: postgres
