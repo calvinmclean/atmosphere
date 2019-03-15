@@ -7,7 +7,6 @@ steps:
     image: calvinmclean/atmosphere
     commands:
       - export DJANGO_SETTINGS_MODULE=atmosphere.settings
-      # - apt-get update && apt-get install --no-install-recommends -y  apt-transport-https build-essential git g++ libffi-dev libldap2-dev libpq-dev libsasl2-dev libssl-dev libxml2-dev libxslt1-dev make openssl python python-dev python-m2crypto python-pip python-psycopg2 python-setuptools python-tk redis-server ssh sudo swig ufw uwsgi uwsgi-plugin-python zlib1g-dev
       - service redis-server start
       - pip install -U pip==9.0.3 setuptools
       - pip install pip-tools==1.11.0
