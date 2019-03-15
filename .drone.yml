@@ -4,7 +4,7 @@ name: default
 
 steps:
   - name: cyverse
-    image: calvinmclean/atmosphere
+    image: plugins/docker
     commands:
       - export DJANGO_SETTINGS_MODULE=atmosphere.settings
       - apt-get update && apt-get install --no-install-recommends -y  apt-transport-https build-essential git g++ libffi-dev libldap2-dev libpq-dev libsasl2-dev libssl-dev libxml2-dev libxslt1-dev make openssl python python-dev python-m2crypto python-pip python-psycopg2 python-setuptools python-tk redis-server ssh sudo swig ufw uwsgi uwsgi-plugin-python zlib1g-dev
