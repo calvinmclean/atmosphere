@@ -7,7 +7,7 @@ steps:
     image: calvinmclean/atmosphere
     commands:
       - export DJANGO_SETTINGS_MODULE=atmosphere.settings
-      - apt-get update && apt-get install --no-install-recommends -y  apt-transport-https build-essential git g++ libffi-dev libldap2-dev libpq-dev libsasl2-dev libssl-dev libxml2-dev libxslt1-dev make openssl python python-dev python-m2crypto python-pip python-psycopg2 python-setuptools python-tk redis-server ssh sudo swig ufw uwsgi uwsgi-plugin-python zlib1g-dev
+      # - apt-get update && apt-get install --no-install-recommends -y  apt-transport-https build-essential git g++ libffi-dev libldap2-dev libpq-dev libsasl2-dev libssl-dev libxml2-dev libxslt1-dev make openssl python python-dev python-m2crypto python-pip python-psycopg2 python-setuptools python-tk redis-server ssh sudo swig ufw uwsgi uwsgi-plugin-python zlib1g-dev
       - service redis-server start
       - pip install -U pip==9.0.3 setuptools
       - pip install pip-tools==1.11.0
@@ -25,12 +25,6 @@ steps:
       - coverage run manage.py test --keepdb --noinput --settings=atmosphere.settings
       - coverage run --append manage.py behave --keepdb --tags ~@skip-if-cyverse --settings=atmosphere.settings --format rerun --outfile rerun_failing.features
       - if [ -f "rerun_failing.features" ]; then python manage.py behave --logging-level DEBUG --capture-stderr --capture --verbosity 3 --keepdb @rerun_failing.features; fi
-      - python manage.py makemigrations --dry-run --check
-    settings:
-      username:
-        from_secret: docker_username
-      password:
-        from_secret: docker_password
 
   # - name: jetstream
   #   image: ubuntu:14.04
