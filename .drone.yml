@@ -26,6 +26,11 @@ steps:
       - coverage run --append manage.py behave --keepdb --tags ~@skip-if-cyverse --settings=atmosphere.settings --format rerun --outfile rerun_failing.features
       - if [ -f "rerun_failing.features" ]; then python manage.py behave --logging-level DEBUG --capture-stderr --capture --verbosity 3 --keepdb @rerun_failing.features; fi
       - python manage.py makemigrations --dry-run --check
+    settings:
+      username:
+        from_secret: docker_username
+      password:
+        from_secret: docker_password
 
   # - name: jetstream
   #   image: ubuntu:14.04
