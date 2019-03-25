@@ -1,6 +1,5 @@
 #!/bin/bash
 
-git clone https://github.com/cyverse/atmosphere.git /opt/dev/atmosphere
 cd /opt/dev/atmosphere
 
 apt-get update && apt-get install -y postgresql python-pip
