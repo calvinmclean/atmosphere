@@ -11,10 +11,12 @@ service redis-server start
 echo "Waiting for postgres..."
 while ! nc -z postgres 5432; do sleep 5; done
 
-psql -c "CREATE USER atmosphere_db_user WITH PASSWORD 'atmosphere_db_pass' CREATEDB;" -U postgres -h postgres
+echo "postgres:5432:postgres:atmosphere_db_user:atmosphere_db_pass" > ~/.pgpass
+chmod 600 ~/.pgpass
 
 function run_tests_for_distribution() {
-  psql -c "CREATE DATABASE atmosphere_db WITH OWNER atmosphere_db_user;" -U postgres -h postgres
+  echo "----- RUNNING TESTS FOR $1 -----"
+  psql -c "CREATE DATABASE atmosphere_db WITH OWNER atmosphere_db_user;" -h postgres -U atmosphere_db_user -d postgres
   ./travis/check_properly_generated_requirements.sh
   pip-sync requirements.txt
   sed -i 's/DATABASE_HOST = localhost/DATABASE_HOST = postgres/' variables.ini.dist
@@ -32,10 +34,8 @@ function run_tests_for_distribution() {
   python manage.py behave --keepdb --tags ~@skip-if-$1 --settings=atmosphere.settings --format rerun --outfile rerun_failing.features
   if [ -f 'rerun_failing.features' ]; then python manage.py behave --logging-level DEBUG --capture-stderr --capture --verbosity 3 --keepdb @rerun_failing.features; fi
   python manage.py makemigrations --dry-run --check
-  psql -c "DROP DATABASE atmosphere_db" -U postgres -h postgres
+  psql -c "DROP DATABASE atmosphere_db" -h postgres -U atmosphere_db_user -d postgres
 }
 
-echo "----- RUNNING TESTS FOR CYVERSE -----"
 run_tests_for_distribution cyverse
-echo "----- RUNNING TESTS FOR JETSTREAM -----"
 run_tests_for_distribution jetstream
