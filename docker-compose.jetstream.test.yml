@@ -9,9 +9,10 @@ services:
     environment:
       POSTGRES_USER: 'atmosphere_db_user'
       POSTGRES_PASSWORD: 'atmosphere_db_pass'
+      POSTGRES_DB: 'atmosphere_db'
 
   sut:
     build: .
-    entrypoint: '/root/test.sh'
+    entrypoint: '/root/test.sh jetstream'
     depends_on:
       - 'postgres'
