@@ -339,21 +339,16 @@ def execute_playbooks(
     inventory_dir = "%s/ansible" % settings.ANSIBLE_ROOT
 
     # Run playbooks
-    results = []
-    for pb in limit_playbooks:
-        logger.info("Executing playbook %s/%s" % (playbook_dir, pb))
-        args = [
-            "--inventory=%s" % inventory_dir,
-            "--limit=%s" % host,
-            "--extra-vars=%s" % json.dumps(extra_vars),
-            "%s/%s" % (playbook_dir, pb)
-        ]
-        pb_runner = PlaybookCLI(args)
-        pb_runner.parse()
-        results.append(pb_runner.run())
-        if results[-1] != 0:
-            break
-    return results
+    args = [
+        "--inventory=%s" % inventory_dir,
+        "--limit=%s" % host,
+        "--extra-vars=%s" % json.dumps(extra_vars),
+    ]
+    args += map(lambda pb: "%s/%s" % (playbook_dir, pb), limit_playbooks)
+    pb_runner = PlaybookCLI(args)
+    pb_runner.parse()
+
+    return pb_runner.run()
 
 
 def check_ansible():
