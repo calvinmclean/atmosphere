@@ -344,7 +344,7 @@ def execute_playbooks(
         "--limit=%s" % host,
         "--extra-vars=%s" % json.dumps(extra_vars),
     ]
-    args += map(lambda pb: "%s/%s" % (playbook_dir, pb), limit_playbooks)
+    args += map(lambda pb: "{}/{}".format(playbook_dir, pb), limit_playbooks)
     pb_runner = PlaybookCLI(args)
     pb_runner.parse()
 
