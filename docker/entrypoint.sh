@@ -30,7 +30,7 @@ fi
 
 # Setup Atmosphere
 source /opt/env/atmo/bin/activate && \
-pip install -r /opt/dev/atmosphere/requirements.txt
+pip3 install apache-libcloud==0.20.1 && pip3 install caslib.py==2.3.0 && pip3 install -r requirements.txt
 
 # Setup SSH keys
 export SECRETS_DIR=/opt/dev/atmosphere-docker-secrets

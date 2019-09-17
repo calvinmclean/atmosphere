@@ -23,12 +23,13 @@ RUN apt-get update && \
       netcat \
       openssl \
       python \
-      python-dev \
+      python3-dev \
       python-m2crypto \
-      python-pip \
-      python-psycopg2 \
-      python-setuptools \
-      python-tk \
+      python3-pip \
+      python3-virtualenv \
+      python3-psycopg2 \
+      python3-setuptools \
+      python3-tk \
       redis-server \
       sendmail \
       ssh \
@@ -47,8 +48,8 @@ RUN mkdir -p /run/uwsgi/app/atmosphere /var/log/uwsgi && \
 
 # Clone repos and pip install requirements
 RUN mkdir /opt/env && \
-    pip install --upgrade pip==9.0.3 virtualenv &&\
-    virtualenv /opt/env/atmosphere &&\
+    pip3 install --upgrade pip==9.0.3 virtualenv &&\
+    virtualenv -p /usr/bin/python3.6 /opt/env/atmosphere &&\
     ln -s /opt/env/atmosphere/ /opt/env/atmo
 RUN git clone --depth 1 https://github.com/cyverse/atmosphere-ansible.git /opt/dev/atmosphere-ansible
 
@@ -66,7 +67,7 @@ RUN mkdir -p /etc/uwsgi/apps-available /etc/uwsgi/apps-enabled && \
     cp docker/uwsgi.ini /etc/uwsgi/apps-available/atmosphere.ini && \
     ln -s /etc/uwsgi/apps-available/atmosphere.ini /etc/uwsgi/apps-enabled/atmosphere.ini
 
-RUN source /opt/env/atmo/bin/activate && pip install -r requirements.txt
+RUN source /opt/env/atmo/bin/activate && pip3 install apache-libcloud==0.20.1 && pip3 install caslib.py==2.3.0 && pip3 install -r requirements.txt
 
 # Cleanup
 RUN apt-get autoremove -y && \

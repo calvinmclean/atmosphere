@@ -2,10 +2,9 @@
 
 import argparse
 import ast
-import ConfigParser
+import configparser
 import os
 import sys
-from sets import Set
 from pprint import pprint
 import shutil
 
@@ -30,12 +29,12 @@ try:
     from colorama import init, Fore, Back, Style
     init()
 except ImportError:
-    print '''
+    print('''
 Note: you are missing out on color highlighted output.
 Consider re-running the following to get `colorama` installed:
 
 pip install -r requirements.txt
-'''
+''')
     # Mock out ANSI color flags to empty values
     class ForeMock:
         def __init__(self):
@@ -175,7 +174,7 @@ def _populate_variable_namespace(vars, includes):
     namespace = {}
     for section in vars.keys():
         if section in includes or section == COMMON_KEY:
-            namespace[section] = Set(vars[section])
+            namespace[section] = set(vars[section])
     return namespace
 
 
@@ -243,7 +242,7 @@ def _coerce(val):
 
 def _get_variables(variables_file=VARIABLES_PATH):
     try:
-        parser = ConfigParser.RawConfigParser()
+        parser = configparser.RawConfigParser()
         parser.readfp(open(variables_file))
         variables = {}
         for section in parser.sections():
@@ -259,13 +258,13 @@ def _get_variables(variables_file=VARIABLES_PATH):
         return (False,
                 [('e', 'Unable to get or parse '
                  'variables from %s:\n\t%s' %
-                 (variables_file, e.message))])
+                 (variables_file, e.args[0]))])
 
 
 def _section_check(vars, distrib):
     messages = []
-    v = Set(vars)
-    d = Set(distrib)
+    v = set(vars)
+    d = set(distrib)
     sections = d.difference(v)
     for section in sections:
         messages.append(('e',
@@ -292,13 +291,13 @@ def _compare_variables_distribution():
 
         for section in variables_ini.keys():
             try:
-                d = Set(variables_dist[section])
-                i = Set(variables_ini[section])
+                d = set(variables_dist[section])
+                i = set(variables_ini[section])
                 unused_dist_ns[section] = d.difference(i)
             except KeyError as e:
                 messages.append(('e',
                     'Missing shared variables section, [%s].'
-                    % (e.message)))
+                    % (e.args[0])))
 
         return (unused_dist_ns, messages + msgs)
     else:
@@ -309,7 +308,7 @@ def _verify_variables_file():
     messages = []
     vars, messages = _compare_variables_distribution()
     if vars:
-        for key, val in vars.iteritems():
+        for key, val in vars.items():
 
             if len(val) != 0:
                 messages.append(('w',
@@ -364,9 +363,9 @@ def _handle_preconditions(mapping):
             ast = ENV.parse(LOADER.get_source(ENV, file_location))
             used_vars = meta.find_undeclared_variables(ast)
 
-            defined_vars = Set(variables[section]).union(
-                                Set(variables[COMMON_KEY]))
-            used_set = Set(used_vars)
+            defined_vars = set(variables[section]).union(
+                                set(variables[COMMON_KEY]))
+            used_set = set(used_vars)
 
             ud_vars = used_set.difference(defined_vars)
 
@@ -453,7 +452,7 @@ def _generate_configs(mapping, dry_run, backup):
         except Exception as e:
             messages.append(('e', 'Exception %s from template '\
                             'location %s and output location '\
-                            '%s' % (e.message,
+                            '%s' % (e.args[0],
                                     template_location,
                                     output_location)))
             success = False
@@ -466,7 +465,7 @@ def generate_configs(mapping, dry_run, backup=True):
      ...
     """
 
-    print 'Testing for preconditions...\n'
+    print('Testing for preconditions...\n')
     success, messages = _check_paths()
     if not success:
         print_messages(messages)
@@ -484,9 +483,9 @@ def generate_configs(mapping, dry_run, backup=True):
     if not success:
         return (success, 1)
     else:
-      print '%s%sPASSED%s\n\n' % (Fore.BLACK, Back.GREEN, Style.RESET_ALL)
+      print('%s%sPASSED%s\n\n' % (Fore.BLACK, Back.GREEN, Style.RESET_ALL))
 
-    print 'Generating configs...\n'
+    print('Generating configs...\n')
     success, messages = _generate_configs(mapping, dry_run, backup)
     print_messages(messages)
     if not success:
@@ -509,32 +508,32 @@ def _determine_message(t):
 def print_messages(messages):
     for t, m in messages:
         level = _determine_message(t)
-        print '%s%s%s' % (level, m, Style.RESET_ALL)
-    print '\n'
+        print('%s%s%s' % (level, m, Style.RESET_ALL))
+    print('\n')
 
 
 def print_configs(mapping):
     """
     Print configuration file's name, template and output file information.
     """
-    print 'Config Variables from %s' % (VARIABLES_PATH)
+    print('Config Variables from %s' % (VARIABLES_PATH))
     variables, messages = _get_variables()
     if not variables:
         print_messages(messages)
     else:
         pprint(variables)
     print
-    print "Sections: %s\n" % (', '.join(mapping[0]))
-    print 'Config Name:\n\tTemplate => Output'
+    print("Sections: %s\n" % (', '.join(mapping[0])))
+    print('Config Name:\n\tTemplate => Output')
     configs, messages = _get_filtered_config_files(mapping[1])
     if not configs:
         print_messages(messages)
 
     for name in mapping[1]:
         template, output = CONFIG_FILES[name]
-        print name + ':'
-        print '\t %s => %s' % (template, output)
-    print completed()
+        print(name + ':')
+        print('\t %s => %s' % (template, output))
+    print(completed())
 
 
 def print_test(mapping):
@@ -543,7 +542,7 @@ def print_test(mapping):
     problems acknowledge otherwise handle_precondition will print
     the error(s).
     """
-    print 'Testing for preconditions...\n'
+    print('Testing for preconditions...\n')
     messages = []
 
     c_files, messages = _get_filtered_config_files(mapping)
@@ -551,23 +550,23 @@ def print_test(mapping):
         print_messages(messages)
         return
     for section in mapping[0]:
-        print "section: %s" % (section)
+        print("section: %s" % (section))
 
         for name in SECTION_MAPPING[section]:
 
             m = ([section], [name])
             success, messages = _handle_preconditions(m)
             if success:
-                print '\t%s (file: %s) looks good.' % (name, CONFIG_FILES[name][1])
-        print
+                print('\t%s (file: %s) looks good.' % (name, CONFIG_FILES[name][1]))
+        print()
 
     print_messages(messages)
     if _has_errors(messages):
-        print failed('')
+        print(failed(''))
     if _has_warnings(messages):
-        print warnings()
+        print(warnings())
     if not (_has_errors(messages) or _has_warnings(messages)):
-        print completed()
+        print(completed())
 
 
 def print_verify():
@@ -575,17 +574,17 @@ def print_verify():
     Prints any variables present in the distribution files that are *not*
     present in `VARIABLES_FILENAME`.
     """
-    print 'Comparing %s with distribution file...\n' % (VARIABLES_FILENAME)
+    print('Comparing %s with distribution file...\n' % (VARIABLES_FILENAME))
     success, messages = _verify_variables_file()
 
     if success:
-        print passed('Verification complete.')
+        print(passed('Verification complete.'))
     else:
         print_messages(messages)
         if _has_errors(messages):
-            print failed('')
+            print(failed(''))
         else:
-            print warnings()
+            print(warnings())
 
 
 def main():
@@ -604,9 +603,9 @@ def main():
                         help='Compares the ini and distribution files.')
     args = parser.parse_args()
 
-    print '%s%s\nProject Path => %s%s' % \
-        (Fore.BLACK, Back.CYAN, PROJECT_PATH, Style.RESET_ALL)
-    print '\n'
+    print('%s%s\nProject Path => %s%s' % \
+        (Fore.BLACK, Back.CYAN, PROJECT_PATH, Style.RESET_ALL))
+    print('\n')
 
     success, messages = _load_template_mapping();
     if not success:
@@ -633,14 +632,14 @@ def main():
 
     if success:
         if args.dry_run:
-            print 'Dry run is complete. No output operations performed.'
+            print('Dry run is complete. No output operations performed.')
 
         gen_files = [CONFIG_FILES[cg][1] for cg in configs_info[1]]
-        print passed('Successfully generated configs:\n\t- %s\n' %
-            ('\n\t- '.join(gen_files)))
+        print(passed('Successfully generated configs:\n\t- %s\n' %
+            ('\n\t- '.join(gen_files))))
         sys.exit(exit_code)
     else:
-        print failed('Configuration files were not generated.\n')
+        print(failed('Configuration files were not generated.\n'))
         sys.exit(exit_code)
 
 
